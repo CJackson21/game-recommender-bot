@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    discord_id BIGINT UNIQUE NOT NULL,
+    username TEXT NOT NULL,
+    steam_id TEXT UNIQUE NOT NULL
+);
