@@ -45,17 +45,45 @@ impl Bot {
         let discord_id = msg.author.id.get() as i64;
         let author_name = &msg.author.name;
 
-        let result = db::link_steam(&self.database, author_name, discord_id, steam_id).await;
+        // Link the user's Steam ID in the database.
+        if let Err(e) = db::link_steam(&self.database, author_name, discord_id, steam_id).await {
+            error!("Database error linking Steam ID: {:?}", e);
+            let _ = msg.channel_id
+                .say(&ctx.http, "Failed to link Steam ID. Please try again later.")
+                .await;
+            return;
+        }
 
-        let response = if result.is_ok() {
-            format!("Successfully linked Steam ID `{}` to your Discord account!", steam_id)
-        } else {
-            error!("Database error: {:?}", result.err());
-            "Failed to link Steam ID. Please try again later.".to_string()
-        };
+        // Notify the user that linking was successful.
+        let _ = msg.channel_id
+            .say(&ctx.http, format!("Successfully linked Steam ID `{}` to your Discord account!", steam_id))
+            .await;
 
-        msg.channel_id.say(&ctx.http, response).await.ok();
+        // Fetch games from the Steam API.
+        match steam::fetch_steam_games(steam_id, &self.steam_api_key).await {
+            Ok(games_vector) => {
+                let steam_owned_games = steam::SteamOwnedGames { games: games_vector };
+                // Store the fetched games in the database.
+                if let Err(e) = db::store_steam_games(&self.database, steam_id, steam_owned_games).await {
+                    error!("Failed to store games in database: {:?}", e);
+                    let _ = msg.channel_id
+                        .say(&ctx.http, "Error storing games in the database.")
+                        .await;
+                } else {
+                    let _ = msg.channel_id
+                        .say(&ctx.http, "Steam games successfully updated in the database!")
+                        .await;
+                }
+            }
+            Err(e) => {
+                error!("Failed to fetch games from Steam API: {:?}", e);
+                let _ = msg.channel_id
+                    .say(&ctx.http, "Error retrieving Steam data.")
+                    .await;
+            }
+        }
     }
+
 
     /// Handles the `!steam_games` command
     async fn handle_steam_games(&self, ctx: &Context, msg: &Message) {

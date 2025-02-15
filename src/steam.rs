@@ -15,7 +15,7 @@ struct SteamResponse {
 
 #[derive(Deserialize)]
 pub struct SteamOwnedGames {
-    games: Vec<SteamGame>,
+    pub games: Vec<SteamGame>,
 }
 
 pub async fn fetch_steam_games(steam_id: &str, api_key: &str) -> Result<Vec<SteamGame>, reqwest::Error> {

@@ -1,5 +1,5 @@
 use sqlx::{ PgPool };
-use game_recommender::steam::SteamOwnedGames;
+use crate::steam::SteamOwnedGames;
 
 pub struct User {
     pub discord_id: i64,
@@ -31,15 +31,15 @@ pub async fn get_steam_id(pool: &PgPool, discord_id: i64) -> Result<Option<Strin
 }
 
 pub async fn store_steam_games(pool: &PgPool, steam_id: &str, owned_games: SteamOwnedGames) -> Result<(), sqlx::Error> {
-    for game in owned_games.into_iter() {
+    for game in owned_games.games {
         sqlx::query!(
-            "INSERT INTO games (steam_id, name, playtime, last_updated)
+            "INSERT INTO games (steam_id, name, playtime_forever, last_updated)
              VALUES ($1, $2, $3, NOW())
              ON CONFLICT(steam_id, name) DO UPDATE
-             SET playtime = EXCLUDED.playtime, last_updated = Now();",
+             SET playtime_forever = EXCLUDED.playtime_forever, last_updated = Now();",
             steam_id,
             game.name,
-            game.playtime,
+            game.playtime_forever as i32, // convert unsigned to signed
         ).execute(pool).await?;
     }
 
