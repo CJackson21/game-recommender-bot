@@ -1,14 +1,18 @@
+use dotenvy::dotenv;
+use std::env;
+use game_recommender::steam::fetch_steam_games;
 #[tokio::test]
 async fn test_fetch_steam_games() {
-    use game_recommender::steam::fetch_steam_games;
 
-    let steam_id = "76561199351744930";
-    let api_key = std::env::var("STEAM_API_KEY").expect("STEAM_API_KEY not found");
+    dotenv().expect("Failed to load .env file");
 
-    match fetch_steam_games(steam_id, &api_key).await {
+    let api_key = env::var("STEAM_API_KEY").expect("STEAM_API_KEY not found");
+    let steam_id = env::var("STEAM_ID").expect("STEAM_ID not found");
+
+    match fetch_steam_games(&steam_id, &api_key).await {
         Ok(games) => {
             assert!(!games.is_empty(), "No games found");
-            for game in &games[..5] {
+            for game in &games {
                 println!("{} - {} hours", game.name, game.playtime_forever / 60);
             }
         }

@@ -1,3 +1,4 @@
+pub mod db;
 use sqlx::{ PgPool };
 
 pub struct User {

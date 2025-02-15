@@ -1,4 +1,5 @@
-mod db;
+mod database;
+use database::db;
 mod steam;
 
 use anyhow::Context as _;
@@ -18,13 +19,6 @@ struct Bot {
 impl EventHandler for Bot {
     async fn message(&self, ctx: Context, msg: Message) {
         let args: Vec<&str> = msg.content.split_whitespace().collect();
-
-        // !hello command
-        if msg.content == "!hello" {
-            if let Err(e) = msg.channel_id.say(&ctx.http, "world!").await {
-                error!("Error sending message: {:?}", e);
-            }
-        }
 
         // !link_steam <steam_id> command
         if args.len() == 2 && args[0] == "!link_steam" {

@@ -626,6 +626,7 @@ name = "game-recommender"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dotenvy",
  "reqwest 0.12.12",
  "serde",
  "serenity",
