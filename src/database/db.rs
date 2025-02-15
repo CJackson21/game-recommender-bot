@@ -1,5 +1,5 @@
-pub mod db;
 use sqlx::{ PgPool };
+use game_recommender::steam::SteamOwnedGames;
 
 pub struct User {
     pub discord_id: i64,
@@ -28,5 +28,33 @@ pub async fn get_steam_id(pool: &PgPool, discord_id: i64) -> Result<Option<Strin
         .await?;
 
     Ok(record.map(|r| r.steam_id))
+}
+
+pub async fn store_steam_games(pool: &PgPool, steam_id: &str, owned_games: SteamOwnedGames) -> Result<(), sqlx::Error> {
+    for game in owned_games.into_iter() {
+        sqlx::query!(
+            "INSERT INTO games (steam_id, name, playtime, last_updated)
+             VALUES ($1, $2, $3, NOW())
+             ON CONFLICT(steam_id, name) DO UPDATE
+             SET playtime = EXCLUDED.playtime, last_updated = Now();",
+            steam_id,
+            game.name,
+            game.playtime,
+        ).execute(pool).await?;
+    }
+
+    Ok(())
+}
+
+pub async fn get_user_games(pool: &PgPool, steam_id: &str) -> Result<Vec<String>, sqlx::Error> {
+    let games = sqlx::query!(
+        "SELECT name FROM games WHERE steam_id = $1;",
+        steam_id,
+    ).fetch_all(pool).await?;
+
+    // Extract the game names from the resulting query
+    let game_names: Vec<String> = games.into_iter().map(|g| g.name).collect();
+
+    Ok(game_names)
 }
 

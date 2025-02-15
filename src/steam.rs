@@ -14,7 +14,7 @@ struct SteamResponse {
 }
 
 #[derive(Deserialize)]
-struct SteamOwnedGames {
+pub struct SteamOwnedGames {
     games: Vec<SteamGame>,
 }
 

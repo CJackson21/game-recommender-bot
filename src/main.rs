@@ -19,64 +19,18 @@ struct Bot {
 impl EventHandler for Bot {
     async fn message(&self, ctx: Context, msg: Message) {
         let args: Vec<&str> = msg.content.split_whitespace().collect();
-
-        // !link_steam <steam_id> command
-        if args.len() == 2 && args[0] == "!link_steam" {
-            let steam_id = args[1];
-            let discord_id = msg.author.id.get() as i64;
-            let author_name = &msg.author.name;
-
-            match db::link_steam(&self.database, author_name, discord_id, steam_id).await {
-                Ok(_) => {
-                    if let Err(e) = msg.channel_id
-                        .say(&ctx.http, format!("Successfully linked Steam ID `{}` to your Discord account!", steam_id))
-                        .await
-                    {
-                        error!("Error sending message: {:?}", e);
-                    }
-                }
-                Err(e) => {
-                    error!("Database error: {:?}", e);
-                    msg.channel_id.say(&ctx.http, "Failed to link Steam ID. Please try again later.").await.ok();
-                }
-            }
+        if args.is_empty() {
+            return;
         }
 
-        // !steam_games command
-        if args[0] == "!steam_games" {
-            let discord_id = msg.author.id.get() as i64;
-
-            match db::get_steam_id(&self.database, discord_id).await {
-                Ok(Some(steam_id)) => {
-                    match steam::fetch_steam_games(&steam_id, &self.steam_api_key).await {
-                        Ok(games) => {
-                            if let Some(top_game) = games.iter().max_by_key(|g| g.playtime_forever) {
-                                let response = format!(
-                                    "Your most played game: **{}** ({} hours)",
-                                    top_game.name,
-                                    top_game.playtime_forever / 60
-                                );
-                                msg.channel_id.say(&ctx.http, response).await.ok();
-                            } else {
-                                msg.channel_id.say(&ctx.http, "No games found in your Steam account.").await.ok();
-                            }
-                        }
-                        Err(e) => {
-                            error!("Error fetching Steam games: {:?}", e);
-                            msg.channel_id.say(&ctx.http, "Error retrieving Steam data.").await.ok();
-                        }
-                    }
-                }
-                Ok(None) => {
-                    msg.channel_id
-                        .say(&ctx.http, "You haven't linked your Steam ID yet! Use `!link_steam <steam_id>`.")
-                        .await.ok();
-                }
-                Err(e) => {
-                    error!("Database error fetching Steam ID: {:?}", e);
-                    msg.channel_id.say(&ctx.http, "Database error. Please try again later.").await.ok();
-                }
+        match args[0] {
+            "!link_steam" if args.len() == 2 => {
+                self.handle_link_steam(&ctx, &msg, args[1]).await;
             }
+            "!steam_games" => {
+                self.handle_steam_games(&ctx, &msg).await;
+            }
+            _ => {}
         }
     }
 
@@ -84,6 +38,72 @@ impl EventHandler for Bot {
         info!("{} is connected!", ready.user.name);
     }
 }
+
+impl Bot {
+    /// Handles the `!link_steam <steam_id>` command
+    async fn handle_link_steam(&self, ctx: &Context, msg: &Message, steam_id: &str) {
+        let discord_id = msg.author.id.get() as i64;
+        let author_name = &msg.author.name;
+
+        let result = db::link_steam(&self.database, author_name, discord_id, steam_id).await;
+
+        let response = if result.is_ok() {
+            format!("Successfully linked Steam ID `{}` to your Discord account!", steam_id)
+        } else {
+            error!("Database error: {:?}", result.err());
+            "Failed to link Steam ID. Please try again later.".to_string()
+        };
+
+        msg.channel_id.say(&ctx.http, response).await.ok();
+    }
+
+    /// Handles the `!steam_games` command
+    async fn handle_steam_games(&self, ctx: &Context, msg: &Message) {
+        let discord_id = msg.author.id.get() as i64;
+
+        match db::get_steam_id(&self.database, discord_id).await {
+            Ok(Some(steam_id)) => {
+                self.fetch_and_display_steam_games(ctx, msg, &steam_id).await;
+            }
+            Ok(None) => {
+                msg.channel_id
+                    .say(&ctx.http, "You haven't linked your Steam ID yet! Use `!link_steam <steam_id>`.")
+                    .await.ok();
+            }
+            Err(e) => {
+                error!("Database error fetching Steam ID: {:?}", e);
+                msg.channel_id
+                    .say(&ctx.http, "Database error. Please try again later.")
+                    .await.ok();
+            }
+        }
+    }
+
+    /// Fetches and displays Steam games for a user
+    async fn fetch_and_display_steam_games(&self, ctx: &Context, msg: &Message, steam_id: &str) {
+        match steam::fetch_steam_games(steam_id, &self.steam_api_key).await {
+            Ok(games) => {
+                if let Some(top_game) = games.iter().max_by_key(|g| g.playtime_forever) {
+                    let response = format!(
+                        "Your most played game: **{}** ({} hours)",
+                        top_game.name,
+                        top_game.playtime_forever / 60
+                    );
+                    msg.channel_id.say(&ctx.http, response).await.ok();
+                } else {
+                    msg.channel_id
+                        .say(&ctx.http, "No games found in your Steam account.")
+                        .await.ok();
+                }
+            }
+            Err(e) => {
+                error!("Error fetching Steam games: {:?}", e);
+                msg.channel_id.say(&ctx.http, "Error retrieving Steam data.").await.ok();
+            }
+        }
+    }
+}
+
 
 #[shuttle_runtime::main]
 async fn serenity(
