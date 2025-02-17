@@ -627,6 +627,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "dotenvy",
+ "once_cell",
  "reqwest 0.12.12",
  "serde",
  "serenity",

@@ -4,4 +4,4 @@ CREATE TABLE IF NOT EXISTS games (
     name TEXT NOT NULL,
     playtime_forever INT NOT NULL DEFAULT 0,
     last_updated TIMESTAMP DEFAULT NOW()
-)-- Add migration script here
+)
