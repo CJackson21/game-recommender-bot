@@ -1,8 +1,10 @@
 use sqlx::PgPool;
+use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::error;
+
 use crate::database::db::{get_all_steam_ids, store_steam_games};
-use crate::steam::fetch_steam_games;
+use crate::steam::{fetch_steam_games, SteamOwnedGames};
 
 /// Function to sync the database with updated games
 pub async fn sync_all_users_games(pool: &PgPool, steam_api_key: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -16,7 +18,8 @@ pub async fn sync_all_users_games(pool: &PgPool, steam_api_key: &str) -> Result<
             for steam_id in steam_ids {
                 match fetch_steam_games(&steam_id, steam_api_key).await {
                     Ok(games) => {
-                        if let Err(e) = store_steam_games(pool, &steam_id, games).await {
+                        let owned_games = SteamOwnedGames { games };
+                        if let Err(e) = store_steam_games(pool, &steam_id, owned_games).await {
                             error!("Failed to store games for Steam ID {}: {:?}", steam_id, e);
                         } else {
                             println!("Successfully updated games for Steam ID {}", steam_id);
