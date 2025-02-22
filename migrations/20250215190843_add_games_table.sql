@@ -3,5 +3,6 @@ CREATE TABLE IF NOT EXISTS games (
     steam_id TEXT NOT NULL,
     name TEXT NOT NULL,
     playtime_forever INT NOT NULL DEFAULT 0,
-    last_updated TIMESTAMP DEFAULT NOW()
-)
+    last_updated TIMESTAMP DEFAULT NOW(),
+    UNIQUE (steam_id, name)
+);
