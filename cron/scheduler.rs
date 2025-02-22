@@ -50,15 +50,15 @@ pub async fn start_scheduler(pool: PgPool, steam_api_key: String) -> Result<JobS
         Job::new_async("0 3 * * *", move |_uuid, _l| {
             let pool = Arc::clone(&pool);
             let api_key = Arc::clone(&api_key);
-
-            async move {
+            Box::pin(async move {
                 if let Err(e) = sync_all_users_games(&pool, &api_key).await {
                     error!("Daily sync failed: {:?}", e);
                 } else {
                     println!("Daily sync completed.");
                 }
-            }
+            })
         })?
+
     };
 
     scheduler.add(job).await?;

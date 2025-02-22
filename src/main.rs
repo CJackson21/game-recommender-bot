@@ -67,7 +67,8 @@ impl Bot {
             Ok(games_vector) => {
                 let steam_owned_games = steam::SteamOwnedGames { games: games_vector };
                 // Store the fetched games in the database.
-                if let Err(e) = db::store_steam_games(&self.database, steam_id, steam_owned_games).await {
+                if let Err(e) = db::store_steam_games(&self.database, steam_id, steam_owned_games)
+                    .await {
                     error!("Failed to store games in database: {:?}", e);
                     let _ = msg.channel_id
                         .say(&ctx.http, "Error storing games in the database.")
@@ -114,7 +115,8 @@ impl Bot {
     async fn fetch_and_display_steam_games(&self, ctx: &Context, msg: &Message, steam_id: &str) {
         match steam::fetch_steam_games(steam_id, &self.steam_api_key).await {
             Ok(games) => {
-                if let Some(top_game) = games.iter().max_by_key(|g| g.playtime_forever) {
+                if let Some(top_game) = games.iter()
+                    .max_by_key(|g| g.playtime_forever) {
                     let response = format!(
                         "Your most played game: **{}** ({} hours)",
                         top_game.name,
@@ -129,7 +131,8 @@ impl Bot {
             }
             Err(e) => {
                 error!("Error fetching Steam games: {:?}", e);
-                msg.channel_id.say(&ctx.http, "Error retrieving Steam data.").await.ok();
+                msg.channel_id.say(&ctx.http, "Error retrieving Steam data.")
+                    .await.ok();
             }
         }
     }
@@ -149,19 +152,22 @@ async fn serenity(
         .get("DISCORD_TOKEN")
         .context("'DISCORD_TOKEN' was not found")?;
 
-    let steam_api_key = secrets.get("STEAM_API_KEY").expect("STEAM_API_KEY missing");
+    let steam_api_key = secrets.get("STEAM_API_KEY")
+        .expect("STEAM_API_KEY missing");
+
+    // Clone the connection and API key for the scheduler
+    let scheduler_connection = connection.clone();
+    let scheduler_api_key = steam_api_key.clone();
 
     let _scheduler = tokio::spawn(async move {
-        if let Err(e) = start_scheduler(connection.clone(), steam_api_key.clone())
-            .await {
-            eprintln!("Failed to start scheduler: {:?}", e);
-        }
+        if let Err(e) = start_scheduler(scheduler_connection, scheduler_api_key)
+            .await { eprintln!("Failed to start scheduler: {:?}", e); }
     });
 
     let intents = GatewayIntents::GUILDS
         | GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
-    let bot = Bot { database: connection.clone(), steam_api_key };
+    let bot = Bot { database: connection, steam_api_key };
 
     let client = Client::builder(&token, intents)
         .event_handler(bot)
