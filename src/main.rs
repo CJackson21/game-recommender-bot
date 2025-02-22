@@ -1,6 +1,8 @@
 mod database;
 use database::db;
 mod steam;
+#[path = "../cron/scheduler.rs"]
+mod scheduler;
 
 use anyhow::Context as _;
 use serenity::async_trait;
@@ -8,6 +10,7 @@ use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
 use shuttle_runtime::SecretStore;
+use scheduler::start_scheduler;
 use tracing::{error, info};
 
 struct Bot {
@@ -138,7 +141,7 @@ async fn serenity(
     #[shuttle_runtime::Secrets] secrets: SecretStore,
     #[shuttle_shared_db::Postgres] db_conn: String,
 ) -> shuttle_serenity::ShuttleSerenity {
-    let pool = sqlx::PgPool::connect(&db_conn)
+    let connection = sqlx::PgPool::connect(&db_conn)
         .await
         .expect("Failed to connect to the database");
 
@@ -146,16 +149,19 @@ async fn serenity(
         .get("DISCORD_TOKEN")
         .context("'DISCORD_TOKEN' was not found")?;
 
-    let steam_api_key = match secrets.get("STEAM_API_KEY") {
-        Some(key) => key,
-        None => {
-            error!("STEAM_API_KEY is missing. Make sure it's set in Secrets.toml.");
-            return Err(anyhow::anyhow!("STEAM_API_KEY missing").into());
-        }
-    };
+    let steam_api_key = secrets.get("STEAM_API_KEY").expect("STEAM_API_KEY missing");
 
-    let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
-    let bot = Bot { database: pool.clone(), steam_api_key };
+    let _scheduler = tokio::spawn(async move {
+        if let Err(e) = start_scheduler(connection.clone(), steam_api_key.clone())
+            .await {
+            eprintln!("Failed to start scheduler: {:?}", e);
+        }
+    });
+
+    let intents = GatewayIntents::GUILDS
+        | GatewayIntents::GUILD_MESSAGES
+        | GatewayIntents::MESSAGE_CONTENT;
+    let bot = Bot { database: connection.clone(), steam_api_key };
 
     let client = Client::builder(&token, intents)
         .event_handler(bot)
