@@ -83,3 +83,39 @@ async fn test_populate_database_with_games() {
         "No games were stored in the database."
     );
 }
+
+#[tokio::test]
+async fn test_fetch_user_games() {
+    let connection = sqlx::PgPool::connect(&DATABASE_TEST_URL)
+        .await.expect("Failed to connect to PostgreSQL database");
+
+    // Clean up previous runs if necessary
+    sqlx::query!("DELETE FROM users;")
+        .execute(&connection)
+        .await
+        .unwrap();
+
+    sqlx::query!("DELETE FROM games;")
+        .execute(&connection)
+        .await
+        .unwrap();
+
+    // Seed test data (use your steam id unless you want to set up a test steam account)
+    db::link_steam(&connection, &DISCORD_USERNAME, *DISCORD_ID, &STEAM_ID)
+        .await.expect("Failed to link steam");
+
+    // Fetch Steam games from the API.
+    let games_vec = fetch_steam_games(&STEAM_ID, &STEAM_API_KEY)
+        .await.expect("Failed to fetch steam games");
+
+    let owned_games = SteamOwnedGames { games: games_vec };
+
+    db::store_steam_games(&connection, &STEAM_ID, owned_games)
+        .await.expect("Failed to store steam games");
+
+    let user_games = db::get_user_games(&connection, &STEAM_ID)
+        .await.expect("Failed to fetch steam games from database");
+
+    assert!(!user_games.is_empty(), "The user games is not empty.");
+
+}

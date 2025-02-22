@@ -626,6 +626,7 @@ name = "game-recommender"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "dotenvy",
  "once_cell",
  "reqwest 0.12.12",
