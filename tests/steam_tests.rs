@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 // test dependencies
+use chrono::Utc;
 mod common;
 use common::STEAM_API_KEY;
 use common::STEAM_ID;
@@ -7,6 +9,9 @@ use common::DISCORD_ID;
 use common::DISCORD_USERNAME;
 use game_recommender::database::db;
 use game_recommender::steam::*;
+use game_recommender::bot::Bot;
+use tokio::sync::Mutex;
+
 
 #[tokio::test]
 async fn test_fetch_steam_games() {
@@ -89,22 +94,22 @@ async fn test_fetch_user_games() {
     let connection = sqlx::PgPool::connect(&DATABASE_TEST_URL)
         .await.expect("Failed to connect to PostgreSQL database");
 
-    // Clean up previous runs if necessary
-    sqlx::query!("DELETE FROM users;")
+    // Ensure the user does not exist before running the test
+    sqlx::query!("DELETE FROM users WHERE steam_id = $1", STEAM_ID.to_string())
         .execute(&connection)
         .await
-        .unwrap();
+        .expect("Failed to delete existing user");
 
-    sqlx::query!("DELETE FROM games;")
+    sqlx::query!("DELETE FROM games WHERE steam_id = $1", STEAM_ID.to_string())
         .execute(&connection)
         .await
-        .unwrap();
+        .expect("Failed to delete existing games");
 
-    // Seed test data (use your steam id unless you want to set up a test steam account)
+    // Insert test user
     db::link_steam(&connection, &DISCORD_USERNAME, *DISCORD_ID, &STEAM_ID)
         .await.expect("Failed to link steam");
 
-    // Fetch Steam games from the API.
+    // Fetch Steam games
     let games_vec = fetch_steam_games(&STEAM_ID, &STEAM_API_KEY)
         .await.expect("Failed to fetch steam games");
 
@@ -117,5 +122,46 @@ async fn test_fetch_user_games() {
         .await.expect("Failed to fetch steam games from database");
 
     assert!(!user_games.is_empty(), "The user games is not empty.");
+}
 
+#[tokio::test]
+async fn test_cache_logic() {
+    let connection = sqlx::PgPool::connect(&DATABASE_TEST_URL)
+        .await.expect("Failed to connect to PostgreSQL database");
+
+    // Create bot with empty cache
+    let bot = Bot {
+        database: connection,
+        steam_api_key: STEAM_API_KEY.to_string(),
+        cache: Mutex::new(HashMap::new()),
+    };
+
+    // Insert a fake entry into the cache
+    {
+        let mut cache_lock = bot.cache.lock().await;
+        let steam_id = STEAM_ID.to_string();
+        let fake_game = SteamGame {
+            appid: 12345,
+            name: "CacheTestGame".to_string(),
+            playtime_forever: 500,
+        };
+
+        cache_lock.insert(steam_id.clone(), (vec![fake_game], Utc::now().timestamp()));
+    }
+
+    // Now check if the cache works correctly
+    {
+        let cache_lock = bot.cache.lock().await;
+        let steam_id = STEAM_ID.to_string();
+        let maybe_entry = cache_lock.get(&steam_id);
+        assert!(maybe_entry.is_some(), "Expected cached entry for STEAM_ID");
+
+        if let Some((games, timestamp)) = maybe_entry {
+            assert_eq!(games.len(), 1, "Should have exactly 1 game cached.");
+            assert_eq!(games[0].name, "CacheTestGame", "Cached game name mismatch");
+
+            let age = Utc::now().timestamp() - *timestamp;
+            assert!(age < 600, "Cache entry should be fresh, but it's {} seconds old", age);
+        }
+    }
 }
