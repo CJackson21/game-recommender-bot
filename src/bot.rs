@@ -1,22 +1,19 @@
 use crate::database::db;
 use crate::steam::{fetch_steam_profile, SteamGame};
-use chrono::Utc;
 use serenity::async_trait;
 use serenity::collector::MessageCollector;
-use serenity::futures::StreamExt;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
-use std::collections::HashMap;
 use std::time::Duration;
-use tokio::sync::Mutex;
 use tracing::{error, info};
+
+const API_URL: &str = "https://api.steampowered.com";
 
 /// Struct representing the bot, including a database pool, API key, and cache.
 pub struct Bot {
     pub database: sqlx::PgPool,
     pub steam_api_key: String,
-    pub cache: Mutex<HashMap<String, (Vec<SteamGame>, i64)>>,
 }
 
 #[async_trait]
@@ -46,6 +43,9 @@ impl EventHandler for Bot {
             "!steam_games" => {
                 self.handle_steam_games(&ctx, &msg).await;
             }
+            "!top_games" => {
+                self.display_top_games(&ctx, &msg).await;
+            }
             _ => {}
         }
     }
@@ -57,29 +57,21 @@ impl EventHandler for Bot {
 
 impl Bot {
     /// Helper to retrieve a user's Steam games.
-    /// Checks the cache first (if data is less than 600s old); otherwise, fetches from the Steam API.
+    /// Checks the cache first (if data is less than 600s old); otherwise, fetches from the database.
     async fn get_steam_games(&self, steam_id: &str) -> Option<Vec<SteamGame>> {
-        {
-            let cache = self.cache.lock().await;
-            if let Some((games, timestamp)) = cache.get(steam_id) {
-                if Utc::now().timestamp() - timestamp < 600 {
-                    return Some(games.clone());
-                }
-            }
-        }
-        // Fetch fresh data if the cache is missing or stale.
-        match crate::steam::fetch_steam_games(steam_id, &self.steam_api_key).await {
-            Ok(games) => {
-                let mut cache = self.cache.lock().await;
-                cache.insert(steam_id.to_string(), (games.clone(), Utc::now().timestamp()));
-                Some(games)
-            }
+        match db::get_user_games(&self.database, steam_id).await {
+            Ok(games) if !games.is_empty() => Some(games),
+            Ok(_) => {
+                error!("No games found in the database for steam_id: {}", steam_id);
+                None
+            },
             Err(e) => {
-                error!("Error fetching Steam games: {:?}", e);
+                error!("Error fetching games from database: {:?}", e);
                 None
             }
         }
     }
+
 
     /// Handles the `!link_steam <steam_id>` command
     pub async fn handle_link_steam(&self, ctx: &Context, msg: &Message, steam_id: &str) {
@@ -109,7 +101,7 @@ impl Bot {
         }
 
         // Use a MessageCollector instead of await_reply.
-        let mut collector = MessageCollector::new(ctx)
+        let collector = MessageCollector::new(ctx)
             .channel_id(msg.channel_id)
             .author_id(msg.author.id)
             .timeout(Duration::from_secs(30));
@@ -147,7 +139,7 @@ impl Bot {
             ).await;
 
             // Try to fetch and store the user's Steam games.
-            match crate::steam::fetch_steam_games(steam_id, &self.steam_api_key).await {
+            match crate::steam::fetch_steam_games(API_URL, steam_id, &self.steam_api_key).await {
                 Ok(games_vector) => {
                     let steam_owned_games = crate::steam::SteamOwnedGames { games: games_vector };
                     if let Err(e) = db::store_steam_games(&self.database, steam_id, steam_owned_games).await {

@@ -1,11 +1,6 @@
 use sqlx::{ PgPool };
 use crate::steam::SteamOwnedGames;
-
-pub struct User {
-    pub discord_id: i64,
-    pub username: String,
-    pub steam_id: String,
-}
+use crate::steam::SteamGame;
 
 /// Links a user's steam account to their discord via database
 pub async fn link_steam(pool: &PgPool, username: &str, discord_id: i64, steam_id: &str) -> Result<(), sqlx::Error> {
@@ -60,17 +55,23 @@ pub async fn store_steam_games(pool: &PgPool, steam_id: &str, owned_games: Steam
 
 
 /// Fetches the user's steam games from the database
-pub async fn get_user_games(pool: &PgPool, steam_id: &str) -> Result<Vec<String>, sqlx::Error> {
-    let games = sqlx::query!(
-        "SELECT name FROM games WHERE steam_id = $1;",
-        steam_id,
-    ).fetch_all(pool).await?;
+pub async fn get_user_games(pool: &PgPool, steam_id: &str) -> Result<Vec<SteamGame>, sqlx::Error> {
+    let records = sqlx::query!(
+        "SELECT name, playtime_forever FROM games WHERE steam_id = $1;",
+        steam_id
+    )
+        .fetch_all(pool)
+        .await?;
 
-    // Extract the game names from the resulting query
-    let game_names: Vec<String> = games.into_iter().map(|g| g.name).collect();
+    let games = records.into_iter().map(|rec| SteamGame {
+        name: rec.name,
+        playtime_forever: rec.playtime_forever as u32,
+        // populate additional fields if necessary
+    }).collect();
 
-    Ok(game_names)
+    Ok(games)
 }
+
 
 /// Fetches all user steam id's from the database
 pub async fn get_all_steam_ids(pool: &PgPool) -> Result<Vec<String>, sqlx::Error> {

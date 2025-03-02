@@ -8,11 +8,8 @@ use bot::Bot;
 use scheduler::start_scheduler;
 use anyhow::Context as _;
 use shuttle_runtime::SecretStore;
-use shuttle_shared_db::Postgres;
 use serenity::prelude::*;
 use tracing::error;
-use std::collections::HashMap;
-use tokio::sync::Mutex;
 
 /// **Main function that initializes the bot**
 #[shuttle_runtime::main]
@@ -53,7 +50,6 @@ async fn serenity(
     let bot = Bot {
         database: connection,
         steam_api_key,
-        cache: Mutex::new(HashMap::new()),
     };
 
     let client = Client::builder(&token, intents)

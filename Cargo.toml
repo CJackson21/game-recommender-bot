@@ -21,6 +21,7 @@ tracing = "0.1.37"
 
 [dev-dependencies]
 dotenvy = "0.15.7"
+wiremock = "0.6.3"
 
 [lib]
 name = "game_recommender"

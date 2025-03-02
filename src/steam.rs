@@ -1,13 +1,11 @@
-use std::fmt::format;
 use tokio::time::{sleep, Duration};
 use reqwest::{Client};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 const RETRY_COOLDOWN: u64 = 5;
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct SteamGame {
-    pub appid: u32,
     pub name: String,
     pub playtime_forever: u32,
 }
@@ -24,9 +22,7 @@ pub struct SteamOwnedGames {
 
 #[derive(Deserialize, Debug)]
 pub struct SteamProfile {
-    pub steam_id: String,
     pub persona_name: String,
-    pub avatar: String,
 }
 
 #[derive(Deserialize)]
@@ -39,15 +35,16 @@ struct SteamProfileResponse {
     response: SteamProfileData,
 }
 
-pub async fn fetch_steam_games(steam_id: &str, api_key: &str) -> anyhow::Result<Vec<SteamGame>> {
+pub async fn fetch_steam_games(api_url: &str, steam_id: &str, api_key: &str) -> anyhow::Result<Vec<SteamGame>> {
     let mut attempts = 0;
     let max_retries = 5;
 
     while attempts < max_retries {
         let url = format!(
-            "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key={}&steamid={}&format=json&include_appinfo=true",
-            api_key, steam_id
+            "{}/IPlayerService/GetOwnedGames/v1/?key={}&steamid={}&format=json&include_appinfo=true",
+            api_url, api_key, steam_id
         );
+
 
         let client = Client::new();
         let response = client.get(url).send().await?;

@@ -6,6 +6,8 @@ use tracing::error;
 use crate::database::db::{get_all_steam_ids, store_steam_games};
 use crate::steam::{fetch_steam_games, SteamOwnedGames};
 
+const API_URL: &str = "https://api.steampowered.com";
+
 /// Function to sync the database with updated games
 pub async fn sync_all_users_games(pool: &PgPool, steam_api_key: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Syncing all users' games...");
@@ -16,7 +18,7 @@ pub async fn sync_all_users_games(pool: &PgPool, steam_api_key: &str) -> Result<
             println!("Fetched {} Steam IDs", steam_ids.len());
 
             for steam_id in steam_ids {
-                match fetch_steam_games(&steam_id, steam_api_key).await {
+                match fetch_steam_games(API_URL, &steam_id, steam_api_key).await {
                     Ok(games) => {
                         let owned_games = SteamOwnedGames { games };
                         if let Err(e) = store_steam_games(pool, &steam_id, owned_games).await {

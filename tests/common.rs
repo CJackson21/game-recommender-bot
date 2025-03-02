@@ -2,12 +2,6 @@
 use once_cell::sync::Lazy;
 use std::env;
 use dotenvy::dotenv;
-
-pub static STEAM_API_KEY: Lazy<String> = Lazy::new(|| {
-    dotenv().ok();
-    env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set")
-});
-
 pub static STEAM_ID: Lazy<String> = Lazy::new(|| {
     dotenv().ok();
     env::var("STEAM_ID").expect("STEAM_ID not set")

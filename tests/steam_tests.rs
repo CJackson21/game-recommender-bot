@@ -1,30 +1,48 @@
-use std::collections::HashMap;
 // test dependencies
-use chrono::Utc;
+use shuttle_runtime::__internals::serde_json;
+
 mod common;
-use common::STEAM_API_KEY;
 use common::STEAM_ID;
 use common::DATABASE_TEST_URL;
 use common::DISCORD_ID;
 use common::DISCORD_USERNAME;
 use game_recommender::database::db;
 use game_recommender::steam::*;
-use game_recommender::bot::Bot;
-use tokio::sync::Mutex;
+use wiremock::{Mock, MockServer, ResponseTemplate};
+use wiremock::matchers::{method, path, query_param};
 
 
 #[tokio::test]
-async fn test_fetch_steam_games() {
-    match fetch_steam_games(&STEAM_ID, &STEAM_API_KEY).await {
-        Ok(games) => {
-            assert!(!games.is_empty(), "No games found");
-            // optional print for debugging
-            // for game in &games {
-            //     println!("{} - {} hours", game.name, game.playtime_forever / 60);
-            // }
-        }
-        Err(e) => panic!("Error fetching Steam data: {:?}", e),
-    }
+async fn test_mocked_fetch_steam_games() {
+    let mock_server = MockServer::start().await;
+
+    // Mock response data
+    let mock_games = vec![
+        SteamGame { name: "Test Game 1".to_string(), playtime_forever: 600 },
+        SteamGame { name: "Test Game 2".to_string(), playtime_forever: 1200 },
+    ];
+
+    let response = serde_json::json!({
+        "response": { "games": mock_games }
+    });
+
+    Mock::given(method("GET"))
+        .and(path("/IPlayerService/GetOwnedGames/v1/"))
+        .and(query_param("key", "test_api_key"))
+        .and(query_param("steamid", "test_steam_id_12345"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(response))
+        .mount(&mock_server)
+        .await;
+
+
+    // Use the mock server instead of the real Steam API
+    let result = fetch_steam_games(&mock_server.uri(), "test_steam_id_12345", "test_api_key").await;
+
+    assert!(result.is_ok());
+    let games = result.unwrap();
+    assert_eq!(games.len(), mock_games.len());
+    assert_eq!(games[0].name, "Test Game 1");
+    assert_eq!(games[1].playtime_forever, 1200);
 }
 
 #[tokio::test]
@@ -39,6 +57,12 @@ async fn test_link_and_get_steam_id() {
         .await
         .unwrap();
 
+    sqlx::query!("DELETE FROM games;")
+        .execute(&connection)
+        .await
+        .unwrap();
+
+
     // Seed test data (use your steam id unless you want to set up a test steam account)
     db::link_steam(&connection, &DISCORD_USERNAME, *DISCORD_ID, &STEAM_ID)
         .await.expect("Failed to link steam");
@@ -51,6 +75,27 @@ async fn test_link_and_get_steam_id() {
 
 #[tokio::test]
 async fn test_populate_database_with_games() {
+    let mock_server = MockServer::start().await;
+
+    // Prepare mock response data for the Steam API
+    let mock_games = vec![
+        SteamGame { name: "Test Game 1".to_string(), playtime_forever: 600 },
+        SteamGame { name: "Test Game 2".to_string(), playtime_forever: 1200 },
+    ];
+    let response = serde_json::json!({
+        "response": { "games": mock_games }
+    });
+
+    // Mount the mock for the expected GET request.
+    // Adjust the query parameters as needed. Here we assume STEAM_ID is a constant string.
+    Mock::given(method("GET"))
+        .and(path("/IPlayerService/GetOwnedGames/v1/"))
+        .and(query_param("key", "test_api_key"))
+        .and(query_param("steamid", &*STEAM_ID))
+        .respond_with(ResponseTemplate::new(200).set_body_json(response))
+        .mount(&mock_server)
+        .await;
+
     let connection = sqlx::PgPool::connect(&DATABASE_TEST_URL)
     .await.expect("Failed to connect to PostgreSQL database");
 
@@ -70,7 +115,7 @@ async fn test_populate_database_with_games() {
         .await.expect("Failed to link steam");
 
     // Fetch Steam games from the API.
-    let games_vec = fetch_steam_games(&STEAM_ID, &STEAM_API_KEY)
+    let games_vec = fetch_steam_games(&mock_server.uri(), &STEAM_ID, "test_api_key")
         .await.expect("Failed to fetch steam games");
 
     // Wrap the vector into a SteamOwnedGames struct
@@ -91,6 +136,27 @@ async fn test_populate_database_with_games() {
 
 #[tokio::test]
 async fn test_fetch_user_games() {
+    let mock_server = MockServer::start().await;
+
+    // Prepare mock response data for the Steam API
+    let mock_games = vec![
+        SteamGame { name: "Test Game 1".to_string(), playtime_forever: 600 },
+        SteamGame { name: "Test Game 2".to_string(), playtime_forever: 1200 },
+    ];
+    let response = serde_json::json!({
+        "response": { "games": mock_games }
+    });
+
+    // Mount the mock for the expected GET request.
+    // Adjust the query parameters as needed. Here we assume STEAM_ID is a constant string.
+    Mock::given(method("GET"))
+        .and(path("/IPlayerService/GetOwnedGames/v1/"))
+        .and(query_param("key", "test_api_key"))
+        .and(query_param("steamid", &*STEAM_ID))
+        .respond_with(ResponseTemplate::new(200).set_body_json(response))
+        .mount(&mock_server)
+        .await;
+
     let connection = sqlx::PgPool::connect(&DATABASE_TEST_URL)
         .await.expect("Failed to connect to PostgreSQL database");
 
@@ -110,7 +176,7 @@ async fn test_fetch_user_games() {
         .await.expect("Failed to link steam");
 
     // Fetch Steam games
-    let games_vec = fetch_steam_games(&STEAM_ID, &STEAM_API_KEY)
+    let games_vec = fetch_steam_games(&mock_server.uri(), &STEAM_ID, "test_api_key")
         .await.expect("Failed to fetch steam games");
 
     let owned_games = SteamOwnedGames { games: games_vec };
@@ -125,43 +191,40 @@ async fn test_fetch_user_games() {
 }
 
 #[tokio::test]
-async fn test_cache_logic() {
+async fn test_game_data_update_behavior() {
     let connection = sqlx::PgPool::connect(&DATABASE_TEST_URL)
-        .await.expect("Failed to connect to PostgreSQL database");
+        .await
+        .expect("Failed to connect");
 
-    // Create bot with empty cache
-    let bot = Bot {
-        database: connection,
-        steam_api_key: STEAM_API_KEY.to_string(),
-        cache: Mutex::new(HashMap::new()),
+    // Clean up games for this STEAM_ID.
+    sqlx::query!("DELETE FROM games WHERE steam_id = $1", STEAM_ID.to_string())
+        .execute(&connection)
+        .await
+        .unwrap();
+
+    // Insert initial game data.
+    let initial_game = SteamGame {
+        name: "New Game".to_string(),
+        playtime_forever: 600,
     };
+    let owned_games = SteamOwnedGames { games: vec![initial_game.clone()] };
+    db::store_steam_games(&connection, &STEAM_ID, owned_games)
+        .await
+        .expect("Failed to store initial game");
 
-    // Insert a fake entry into the cache
-    {
-        let mut cache_lock = bot.cache.lock().await;
-        let steam_id = STEAM_ID.to_string();
-        let fake_game = SteamGame {
-            appid: 12345,
-            name: "CacheTestGame".to_string(),
-            playtime_forever: 500,
-        };
+    // Update the same game with new playtime.
+    let updated_game = SteamGame {
+        name: "New Game".to_string(),
+        playtime_forever: 1200,
+    };
+    let updated_owned_games = SteamOwnedGames { games: vec![updated_game.clone()] };
+    db::store_steam_games(&connection, &STEAM_ID, updated_owned_games)
+        .await
+        .expect("Failed to update game");
 
-        cache_lock.insert(steam_id.clone(), (vec![fake_game], Utc::now().timestamp()));
-    }
-
-    // Now check if the cache works correctly
-    {
-        let cache_lock = bot.cache.lock().await;
-        let steam_id = STEAM_ID.to_string();
-        let maybe_entry = cache_lock.get(&steam_id);
-        assert!(maybe_entry.is_some(), "Expected cached entry for STEAM_ID");
-
-        if let Some((games, timestamp)) = maybe_entry {
-            assert_eq!(games.len(), 1, "Should have exactly 1 game cached.");
-            assert_eq!(games[0].name, "CacheTestGame", "Cached game name mismatch");
-
-            let age = Utc::now().timestamp() - *timestamp;
-            assert!(age < 600, "Cache entry should be fresh, but it's {} seconds old", age);
-        }
-    }
+    let games = db::get_user_games(&connection, &STEAM_ID)
+        .await
+        .expect("Failed to fetch games");
+    assert_eq!(games.len(), 1);
+    assert_eq!(games[0].playtime_forever, 1200, "Game playtime should be updated to 1200");
 }
