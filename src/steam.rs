@@ -1,3 +1,4 @@
+use std::fmt::format;
 use tokio::time::{sleep, Duration};
 use reqwest::{Client};
 use serde::Deserialize;
@@ -19,6 +20,23 @@ struct SteamResponse {
 #[derive(Deserialize)]
 pub struct SteamOwnedGames {
     pub games: Vec<SteamGame>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SteamProfile {
+    pub steam_id: String,
+    pub persona_name: String,
+    pub avatar: String,
+}
+
+#[derive(Deserialize)]
+struct SteamProfileData {
+    players: Vec<SteamProfile>,
+}
+
+#[derive(Deserialize)]
+struct SteamProfileResponse {
+    response: SteamProfileData,
 }
 
 pub async fn fetch_steam_games(steam_id: &str, api_key: &str) -> anyhow::Result<Vec<SteamGame>> {
@@ -51,4 +69,27 @@ pub async fn fetch_steam_games(steam_id: &str, api_key: &str) -> anyhow::Result<
     }
     Err(anyhow::anyhow!("Max retries reached"))
 
+}
+
+pub async fn fetch_steam_profile(steam_id: &str, api_key: &str) -> anyhow::Result<SteamProfile> {
+    let url = format!(
+        "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={}&steamids={}",
+        api_key, steam_id
+    );
+
+    let client = Client::new();
+    let response = client.get(&url).send().await?;
+    if response.status().is_success() {
+        let profile_data = response.json::<SteamProfileResponse>().await?;
+        if let Some(profile) = profile_data.response.players.into_iter().next() {
+            Ok(profile)
+        }
+        else {
+            Err(anyhow::anyhow!("No Steam profile found for the provided Steam ID!"))
+        }
+    }
+    else {
+        Err(anyhow::anyhow!("Failed to fetch Steam profile for steam ID: {}; Status: {}",
+            steam_id, response.status().as_u16()))
+    }
 }
