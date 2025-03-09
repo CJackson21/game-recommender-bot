@@ -7,6 +7,7 @@ mod scheduler;
 use bot::Bot;
 use scheduler::start_scheduler;
 use anyhow::Context as _;
+use game_recommender::llm::LLMClient;
 use shuttle_runtime::SecretStore;
 use serenity::prelude::*;
 use tracing::error;
@@ -25,11 +26,15 @@ async fn serenity(
     // Retrieve API keys from Shuttle Secrets
     let token = secrets
         .get("DISCORD_TOKEN")
-        .context("'DISCORD_TOKEN' was not found")?;
+        .expect("DISCORD_TOKEN missing");
 
     let steam_api_key = secrets
         .get("STEAM_API_KEY")
         .expect("STEAM_API_KEY missing");
+
+    let llm_api_key = secrets
+        .get("LLM_API_KEY")
+        .expect("LLM_API_KEY missing");
 
     // Clone for scheduler
     let scheduler_connection = connection.clone();
@@ -50,6 +55,7 @@ async fn serenity(
     let bot = Bot {
         database: connection,
         steam_api_key,
+        llm_client: LLMClient::new(&llm_api_key),
     };
 
     let client = Client::builder(&token, intents)

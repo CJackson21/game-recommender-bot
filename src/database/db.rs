@@ -66,7 +66,6 @@ pub async fn get_user_games(pool: &PgPool, steam_id: &str) -> Result<Vec<SteamGa
     let games = records.into_iter().map(|rec| SteamGame {
         name: rec.name,
         playtime_forever: rec.playtime_forever as u32,
-        // populate additional fields if necessary
     }).collect();
 
     Ok(games)
