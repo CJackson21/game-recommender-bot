@@ -1,5 +1,5 @@
 use crate::database::db;
-use game_recommender::llm::LLMClient;
+use crate::llm::LLMClient;
 use crate::steam::{fetch_steam_profile, SteamGame};
 use serenity::async_trait;
 use serenity::collector::MessageCollector;
@@ -248,36 +248,46 @@ impl Bot {
 
         match db::get_steam_id(&self.database, discord_id).await {
             Ok(Some(steam_id)) => {
-                let _ = msg.channel_id.say(
-                    &ctx.http,format!("Getting recommendations for {}", msg.author)).await;
+                if let Err(e) = msg.channel_id
+                    .say(&ctx.http, format!("🔍 Getting recommendations for {}...", msg.author))
+                    .await
+                {
+                    error!("Failed to send message: {:?}", e);
+                    return;
+                }
 
                 // Fetch recommendations
                 match self.llm_client.get_recommendation(&self.database, &steam_id).await {
                     Ok(recommendations) => {
-                        let _ = msg.channel_id.say(
-                            &ctx.http,
-                            format!("Based on your game history, you might enjoy: \n{}",
-                                    recommendations)).await;
+                        let response = format!(
+                            "🎮 Based on your game history, you might enjoy:\n\n{}",
+                            recommendations
+                        );
+
+                        if let Err(e) = msg.channel_id.say(&ctx.http, response).await {
+                            error!("Failed to send recommendation: {:?}", e);
+                        }
                     }
                     Err(e) => {
-                        error!("Error generating a response: {:?}", e);
-                        let _ = msg.channel_id.say(
-                            &ctx.http, "Error generating a response.").await;
+                        error!("Error generating recommendations: {:?}", e);
+                        let _ = msg.channel_id
+                            .say(&ctx.http, "⚠️ Error generating recommendations. Please try again later.")
+                            .await;
                     }
                 }
             }
             Ok(None) => {
-                let _ = msg.channel_id.say(
-                    &ctx.http,
-                    "You haven't linked your Steam ID yet! Use `!link_steam <steam_id>`.",
-                ).await;
-                return;
+                let _ = msg.channel_id
+                    .say(&ctx.http, "⚠️ You haven't linked your Steam ID yet! Use `!link_steam <steam_id>` to link your account.")
+                    .await;
             }
             Err(e) => {
-                error!("Error retrieving Steam ID: {:?}", e);
-                let _ = msg.channel_id.say(&ctx.http, "Database error. Please try again later.").await;
-                return;
+                error!("Database error retrieving Steam ID: {:?}", e);
+                let _ = msg.channel_id
+                    .say(&ctx.http, "⚠️ Database error. Please try again later.")
+                    .await;
             }
         }
     }
+
 }
