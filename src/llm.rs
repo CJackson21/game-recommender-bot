@@ -2,6 +2,7 @@ use sqlx::PgPool;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use crate::database::db::get_user_games;
+use std::error::Error;
 
 #[derive(Serialize)]
 struct HuggingFaceRequest {
@@ -29,7 +30,7 @@ impl LLMClient {
     }
 
     pub async fn get_recommendation(&self, pool: &PgPool, steam_id: &str)
-        -> Result<String, Box<dyn std::error::Error>>  {
+        -> Result<String, Box<dyn Error + Send + Sync>>  {
         // Fetch the user's games from the database
         let user_games = get_user_games(pool, steam_id).await?;
 
