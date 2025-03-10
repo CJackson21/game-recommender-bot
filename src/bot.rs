@@ -49,7 +49,7 @@ impl EventHandler for Bot {
                 self.display_top_games(&ctx, &msg).await;
             }
             "!recommend" => {
-                self.handle_steam_games(&ctx, &msg).await;
+                self.recommend_games(&ctx, &msg).await;
             }
             _ => {}
         }

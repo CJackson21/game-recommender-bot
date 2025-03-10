@@ -12,13 +12,6 @@ struct HuggingFaceRequest {
 struct HuggingFaceResponse {
     generated_text: String,
 }
-
-#[derive(Debug, Serialize)]
-struct GameHistory {
-    name: String,
-    playtime_hours: u32,
-}
-
 pub struct LLMClient {
     client: Client,
     api_key: String,

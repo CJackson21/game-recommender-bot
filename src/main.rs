@@ -7,7 +7,6 @@ mod scheduler;
 
 use bot::Bot;
 use scheduler::start_scheduler;
-use anyhow::Context as _;
 use crate::llm::LLMClient;
 use shuttle_runtime::SecretStore;
 use serenity::prelude::*;
