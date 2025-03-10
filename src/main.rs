@@ -1,15 +1,15 @@
 mod bot;
-mod llm;
 mod database;
-mod steam;
+mod llm;
 #[path = "../cron/scheduler.rs"]
 mod scheduler;
+mod steam;
 
+use crate::llm::LLMClient;
 use bot::Bot;
 use scheduler::start_scheduler;
-use crate::llm::LLMClient;
-use shuttle_runtime::SecretStore;
 use serenity::prelude::*;
+use shuttle_runtime::SecretStore;
 use tracing::error;
 
 /// **Main function that initializes the bot**
@@ -24,17 +24,11 @@ async fn serenity(
         .expect("Failed to connect to the database");
 
     // Retrieve API keys from Shuttle Secrets
-    let token = secrets
-        .get("DISCORD_TOKEN")
-        .expect("DISCORD_TOKEN missing");
+    let token = secrets.get("DISCORD_TOKEN").expect("DISCORD_TOKEN missing");
 
-    let steam_api_key = secrets
-        .get("STEAM_API_KEY")
-        .expect("STEAM_API_KEY missing");
+    let steam_api_key = secrets.get("STEAM_API_KEY").expect("STEAM_API_KEY missing");
 
-    let llm_api_key = secrets
-        .get("LLM_API_KEY")
-        .expect("LLM_API_KEY missing");
+    let llm_api_key = secrets.get("LLM_API_KEY").expect("LLM_API_KEY missing");
 
     // Clone for scheduler
     let scheduler_connection = connection.clone();
@@ -48,9 +42,8 @@ async fn serenity(
     });
 
     // Configure Discord bot with event handlers
-    let intents = GatewayIntents::GUILDS
-        | GatewayIntents::GUILD_MESSAGES
-        | GatewayIntents::MESSAGE_CONTENT;
+    let intents =
+        GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
     let bot = Bot {
         database: connection,

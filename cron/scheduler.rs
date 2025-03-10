@@ -9,7 +9,10 @@ use crate::steam::{fetch_steam_games, SteamOwnedGames};
 const API_URL: &str = "https://api.steampowered.com";
 
 /// Function to sync the database with updated games
-pub async fn sync_all_users_games(pool: &PgPool, steam_api_key: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn sync_all_users_games(
+    pool: &PgPool,
+    steam_api_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Syncing all users' games...");
 
     // Fetch all user steam IDs
@@ -38,7 +41,10 @@ pub async fn sync_all_users_games(pool: &PgPool, steam_api_key: &str) -> Result<
 }
 
 /// Daily scheduler to run `sync_all_users_games`
-pub async fn start_scheduler(pool: PgPool, steam_api_key: String) -> Result<JobScheduler, Box<dyn std::error::Error>> {
+pub async fn start_scheduler(
+    pool: PgPool,
+    steam_api_key: String,
+) -> Result<JobScheduler, Box<dyn std::error::Error>> {
     let scheduler = JobScheduler::new().await?;
 
     let pool = std::sync::Arc::new(pool);
@@ -60,7 +66,6 @@ pub async fn start_scheduler(pool: PgPool, steam_api_key: String) -> Result<JobS
                 }
             })
         })?
-
     };
 
     scheduler.add(job).await?;

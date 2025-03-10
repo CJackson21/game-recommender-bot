@@ -1,7 +1,7 @@
-use sqlx::PgPool;
+use crate::database::db::get_user_games;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use crate::database::db::get_user_games;
+use sqlx::PgPool;
 use std::error::Error;
 
 #[derive(Serialize)]
@@ -29,8 +29,11 @@ impl LLMClient {
         }
     }
 
-    pub async fn get_recommendation(&self, pool: &PgPool, steam_id: &str)
-        -> Result<String, Box<dyn Error + Send + Sync>>  {
+    pub async fn get_recommendation(
+        &self,
+        pool: &PgPool,
+        steam_id: &str,
+    ) -> Result<String, Box<dyn Error + Send + Sync>> {
         // Fetch the user's games from the database
         let user_games = get_user_games(pool, steam_id).await?;
 
@@ -41,7 +44,13 @@ impl LLMClient {
         // Format games to be fed into LLM
         let game_history: Vec<String> = user_games
             .iter()
-            .map(|game| format!("- {} ({} hours played)", game.name, game.playtime_forever / 60))
+            .map(|game| {
+                format!(
+                    "- {} ({} hours played)",
+                    game.name,
+                    game.playtime_forever / 60
+                )
+            })
             .collect();
 
         let prompt = format!(
@@ -53,9 +62,15 @@ impl LLMClient {
             inputs: vec![prompt],
         };
 
-        let response: HuggingFaceResponse = self.client.post(&self.api_url)
+        let response: HuggingFaceResponse = self
+            .client
+            .post(&self.api_url)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&request).send().await?.json().await?;
+            .json(&request)
+            .send()
+            .await?
+            .json()
+            .await?;
         Ok(response.generated_text.clone())
     }
 }

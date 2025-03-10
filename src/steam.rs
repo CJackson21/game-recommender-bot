@@ -1,6 +1,6 @@
-use tokio::time::{sleep, Duration};
-use reqwest::{Client};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tokio::time::{sleep, Duration};
 
 const RETRY_COOLDOWN: u64 = 5;
 
@@ -35,7 +35,11 @@ struct SteamProfileResponse {
     response: SteamProfileData,
 }
 
-pub async fn fetch_steam_games(api_url: &str, steam_id: &str, api_key: &str) -> anyhow::Result<Vec<SteamGame>> {
+pub async fn fetch_steam_games(
+    api_url: &str,
+    steam_id: &str,
+    api_key: &str,
+) -> anyhow::Result<Vec<SteamGame>> {
     let mut attempts = 0;
     let max_retries = 5;
 
@@ -45,27 +49,25 @@ pub async fn fetch_steam_games(api_url: &str, steam_id: &str, api_key: &str) -> 
             api_url, api_key, steam_id
         );
 
-
         let client = Client::new();
         let response = client.get(url).send().await?;
 
         if response.status().is_success() {
             let steam_data = response.json::<SteamResponse>().await?.response;
             return Ok(steam_data.games);
-        }
-        else if response.status().as_u16() == 429 {
+        } else if response.status().as_u16() == 429 {
             eprintln!("Steam has limited the rate limit. Retrying in 5 seconds...");
             sleep(Duration::from_secs(RETRY_COOLDOWN)).await;
-        }
-        else {
-            eprintln!("Failed to fetch Steam games, Status: {}. Retrying...",
-                      response.status().as_u16());
+        } else {
+            eprintln!(
+                "Failed to fetch Steam games, Status: {}. Retrying...",
+                response.status().as_u16()
+            );
             sleep(Duration::from_secs(2_u64.pow(attempts))).await;
         }
         attempts += 1;
     }
     Err(anyhow::anyhow!("Max retries reached"))
-
 }
 
 pub async fn fetch_steam_profile(steam_id: &str, api_key: &str) -> anyhow::Result<SteamProfile> {
@@ -80,13 +82,16 @@ pub async fn fetch_steam_profile(steam_id: &str, api_key: &str) -> anyhow::Resul
         let profile_data = response.json::<SteamProfileResponse>().await?;
         if let Some(profile) = profile_data.response.players.into_iter().next() {
             Ok(profile)
+        } else {
+            Err(anyhow::anyhow!(
+                "No Steam profile found for the provided Steam ID!"
+            ))
         }
-        else {
-            Err(anyhow::anyhow!("No Steam profile found for the provided Steam ID!"))
-        }
-    }
-    else {
-        Err(anyhow::anyhow!("Failed to fetch Steam profile for steam ID: {}; Status: {}",
-            steam_id, response.status().as_u16()))
+    } else {
+        Err(anyhow::anyhow!(
+            "Failed to fetch Steam profile for steam ID: {}; Status: {}",
+            steam_id,
+            response.status().as_u16()
+        ))
     }
 }
