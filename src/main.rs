@@ -9,6 +9,7 @@ use crate::llm::LLMClient;
 use bot::Bot;
 use scheduler::start_scheduler;
 use serenity::prelude::*;
+use serenity::model::id::ChannelId;
 use shuttle_runtime::SecretStore;
 use tracing::error;
 
@@ -30,6 +31,14 @@ async fn serenity(
 
     let llm_api_key = secrets.get("LLM_API_KEY").expect("LLM_API_KEY missing");
 
+    let channel_id = ChannelId::new(
+        secrets
+            .get("DISCORD_CHANNEL_ID")
+            .expect("DISCORD_CHANNEL_ID missing")
+            .parse::<u64>()
+            .expect("Invalid DISCORD_CHANNEL_ID format"),
+    );
+
     // Clone for scheduler
     let scheduler_connection = connection.clone();
     let scheduler_api_key = steam_api_key.clone();
@@ -49,6 +58,7 @@ async fn serenity(
         database: connection,
         steam_api_key,
         llm_client: LLMClient::new(&llm_api_key),
+        channel_id
     };
 
     let client = Client::builder(&token, intents)

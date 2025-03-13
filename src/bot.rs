@@ -5,6 +5,7 @@ use serenity::async_trait;
 use serenity::collector::MessageCollector;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
+use serenity::model::id::ChannelId;
 use serenity::prelude::*;
 use std::time::Duration;
 use tracing::{error, info};
@@ -16,6 +17,7 @@ pub struct Bot {
     pub database: sqlx::PgPool,
     pub steam_api_key: String,
     pub llm_client: LLMClient,
+    pub channel_id: ChannelId,
 }
 
 #[async_trait]
@@ -55,8 +57,14 @@ impl EventHandler for Bot {
         }
     }
 
-    async fn ready(&self, _: Context, ready: Ready) {
+    async fn ready(&self, ctx: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
+
+        if let Err(e) = self.channel_id
+            .say(&ctx.http, "🚀 Bot is online and ready!").await {
+            error!("Failed to send message: {:?}", e);
+        }
+
     }
 }
 
