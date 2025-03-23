@@ -1,121 +1,116 @@
-
-# Project Title
-
-A brief description of what this project does and who it's for
-
 # 🎮 Game Recommender Discord Bot
+A Rust-powered Discord bot that links to a user's Steam account, fetches their game library, and (coming soon) provides LLM-based game recommendations. Built with Serenity, SQLx, and Tokio.
 
-A Rust-powered Discord bot that links to a user's Steam account, fetches their game library, and provides **game recommendations** (coming soon) using an LLM. Built with **Serenity**, **SQLx**, and **Shuttle**.
+---
 
 ## 🚀 Features
-
-- 🔗 **Link Steam Account**: Users can link their Steam ID to their Discord account.
-- 📥 **Fetch Owned Games**: Fetches and stores the user's Steam library in a database.
-- 🔄 **Sync Games**: Periodically updates the user's game data.
-- 🔍 **Retrieve Game Data**: Users can see their most-played games.
-- 🤖 **Game Recommendations** (WIP): Uses an **LLM-based** system to suggest new games.
+- 🔗 Link Steam Account – Connect your Discord identity to your Steam ID
+- 📥 Fetch Owned Games – Pulls and stores your Steam game library
+- 🔄 Auto-Sync – Periodically updates game data in the background
+- 📊 Game Stats – View most-played games
+- 🧠 LLM Game Recs (Coming Soon) – Suggests new games using AI
 
 ---
 
 ## 📦 Installation
-
 ### 1️⃣ Prerequisites
 
-- [Rust & Cargo](https://www.rust-lang.org/)
-- [PostgreSQL](https://www.postgresql.org/)
-- [Shuttle](https://www.shuttle.rs/) (for deployment)
-- A **Discord bot token** and **Steam API key**
-
-### 2️⃣ Clone the Repository
-
-```sh
-git clone https://github.com/yourusername/game-recommender.git
-cd game-recommender
-
-3️⃣ Set Up Environment Variables
-
-Create a .env file (for local testing):
-
-DATABASE_URL=postgres://username:password@localhost/production
-DATABASE_TEST_URL=postgres://username:password@localhost/development
-DISCORD_TOKEN=your_discord_bot_token
-STEAM_API_KEY=your_steam_api_key
-STEAM_ID=your_test_steam_id  # (for testing purposes)
-
-For Shuttle secrets (if deploying):
-
-shuttle secrets add DATABASE_URL "postgres://bot:password@localhost/users"
-shuttle secrets add DISCORD_TOKEN "your_discord_bot_token"
-shuttle secrets add STEAM_API_KEY "your_steam_api_key"
-
-4️⃣ Run Database Migrations
-
-cargo sqlx migrate run
-
-For test database:
-
-cargo sqlx migrate run --database-url "postgres://username:password@localhost/development"
-
-5️⃣ Build & Run the Bot
-
-cargo run
-
-For Shuttle deployment:
-
-shuttle deploy
-
-🤖 Usage
-✅ Bot Commands
-Command	Description
-!link_steam <steam_id>	Links a user's Discord account to their Steam ID.
-!steam_games	Retrieves the user's stored game data.
-!recommend (WIP)	Provides an LLM-based game recommendation.
-🔧 Development
-🧪 Running Tests
-
-Run tests using:
-
-cargo test -- --nocapture
-
-🏗 Project Structure
-
-game-recommender/
-├── src/
-│   ├── main.rs          # Discord bot logic
-│   ├── database/        # Database functions
-│   │   ├── db.rs
-│   ├── steam.rs         # Steam API interactions
-│   ├── llm.rs           # (TODO) Game recommendation logic
-│
-├── tests/               # Integration tests
-│   ├── steam_tests.rs
-│
-├── migrations/          # SQL migrations
-├── Secrets.toml         # (Shuttle secrets)
-├── .env                 # Local environment variables
-├── Cargo.toml           # Rust dependencies
-├── README.md            # You're here!
-
-🚀 Roadmap
-✅ Current Features
-
-    Steam account linking
-    Fetch & store game data
-    Basic database integration
-
-🔜 Upcoming Features
-
-    LLM-powered recommendations (RAG-based)
-    Game genre preferences
-    Trending game suggestions
-    More detailed user analytics
-
-🛠️ Contributing
-
-Want to contribute? Feel free to fork this repo and submit a PR! 🚀
-📜 License
-
-This project is licensed under the MIT License.
-
+- Rust & Cargo
+- Docker
+- PostgreSQL client
+- Discord bot token + Steam API key
 
 ---
+
+### 2️⃣ Start PostgreSQL with Docker
+#### Run the included Docker config:
+
+```docker-compose up -d```
+- db (port 5432) — main database
+- test-db (port 5433) — used for integration tests
+
+--- 
+
+### 3️⃣ Create .env File
+#### env:
+
+- DISCORD_TOKEN=your_discord_token
+- STEAM_API_KEY=your_steam_api_key
+- LLM_API_KEY=your_llm_api_key
+- DISCORD_CHANNEL_ID=your_channel_id
+- DATABASE_URL=postgres://user:password@localhost:5432/games_db
+- DATABASE_TEST_URL=postgres://user:password@localhost:5433/test_games_db
+
+--- 
+
+### 4️⃣ Run Database Migrations
+```cargo sqlx migrate run```
+
+#### For the test database:
+
+```cargo sqlx migrate run --database-url $DATABASE_TEST_URL```
+
+---
+
+### 5️⃣ Run the Bot
+
+```cargo run```
+# 🤖 Usage
+## ✅ Bot Commands
+
+| Command                  | Description                                 |
+|--------------------------|---------------------------------------------|
+| `!link_steam <steam_id>` | Link your Steam account                     |
+| `!steam_games`           | Show your most-played games                 |
+| `!recommend` (WIP)       | Get AI-generated game recommendations       |
+
+---
+
+## 🧪 Running Tests
+
+Ensure `test-db` is running on port `5433`, then run:
+
+```cargo test -- --nocapture```
+
+## 🗂️ Project Structure
+
+```text
+game-recommender/
+├── src/
+│   ├── main.rs            # App entry point
+│   ├── bot/               # Discord bot logic
+│   ├── database/          # DB operations
+│   ├── steam.rs           # Steam API logic
+│   ├── llm.rs             # LLM logic (recommendations)
+├── cron/scheduler.rs      # Background scheduler
+├── tests/steam_tests.rs   # Integration tests
+├── migrations/            # SQLx migrations
+├── docker-compose.yml     # PostgreSQL setup
+├── .env                   # Local secrets
+├── Cargo.toml             # Project config
+├── README.md              # You're here!
+```
+
+## 🛣️ Roadmap
+
+### ✅ Current
+- Steam account linking
+- Game sync and storage
+- Discord bot integration
+
+### 🔜 Coming Soon
+- AI-generated recommendations (via HuggingFace or local LLM)
+- Genre-based filtering
+- Personalized analytics & stats
+
+---
+
+## 🛠 Contributing
+
+PRs are welcome! Fork this repo, make your changes, and submit a pull request 🚀
+
+---
+
+## 📜 License
+
+This project is licensed under the **MIT License**.
