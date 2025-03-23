@@ -22,7 +22,7 @@ pub struct SteamOwnedGames {
 
 #[derive(Deserialize, Debug)]
 pub struct SteamProfile {
-    pub persona_name: String,
+    pub personaname: String,
 }
 
 #[derive(Deserialize)]

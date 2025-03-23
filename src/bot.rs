@@ -105,7 +105,7 @@ impl Bot {
         let confirmation_message = format!(
             "Here is the Steam profile with the associated Steam ID: **{}**.\n\
              Reply with `yes` within 30 seconds to confirm linking, or `no` to cancel.",
-            profile_data.persona_name
+            profile_data.personaname
         );
 
         if let Err(err) = msg.channel_id.say(&ctx.http, confirmation_message).await {
