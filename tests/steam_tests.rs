@@ -1,6 +1,3 @@
-// test dependencies
-use shuttle_runtime::__internals::serde_json;
-
 use dotenvy::dotenv;
 use game_recommender::database::db;
 use game_recommender::steam::*;
