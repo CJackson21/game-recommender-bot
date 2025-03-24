@@ -95,3 +95,12 @@ pub async fn get_all_steam_ids(pool: &PgPool) -> Result<Vec<String>, sqlx::Error
     let steam_ids = steam_ids.into_iter().map(|row| row.steam_id).collect();
     Ok(steam_ids)
 }
+
+pub async fn check_if_user_exists(pool: &PgPool, steam_id: &str) -> Result<bool, sqlx::Error> {
+    // Check database for the user's steam id
+    let user = sqlx::query!("SELECT steam_id FROM users WHERE steam_id = $1;", steam_id)
+        .fetch_optional(pool)
+        .await?;
+
+    Ok(user.is_some())
+}

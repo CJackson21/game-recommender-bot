@@ -87,24 +87,42 @@ impl Bot {
 
     /// Handles the `!link_steam <steam_id>` command
     pub async fn handle_link_steam(&self, ctx: &Context, msg: &Message, steam_id: &str) {
+        let exists = match db::check_if_user_exists(&self.database, steam_id).await {
+            Ok(val) => val,
+            Err(e) => {
+                error!("Error checking if user exists: {:?}", e);
+                let _ = msg.channel_id.say(
+                    &ctx.http,
+                    "⚠️ Error checking your Steam ID in the database. Try again later.",
+                ).await;
+                return;
+            }
+        };
+
+        if exists {
+            let _ = msg.channel_id.say(
+                &ctx.http,
+                "You already have a linked Steam ID!",
+            ).await;
+            return;
+        }
+
         // Attempt to fetch the Steam profile to validate the provided Steam ID.
-        let profile_data =
-            match fetch_steam_profile(steam_id, &self.steam_api_key).await {
-                Ok(profile) => profile,
-                Err(err) => {
-                    error!("Error fetching Steam profile: {:?}", err);
-                    let _ = msg.channel_id.say(
+        let profile_data = match fetch_steam_profile(steam_id, &self.steam_api_key).await {
+            Ok(profile) => profile,
+            Err(err) => {
+                error!("Error fetching Steam profile: {:?}", err);
+                let _ = msg.channel_id.say(
                     &ctx.http,
                     "Error fetching Steam profile. Please make sure your Steam ID is correct!",
                 ).await;
-                    return;
-                }
-            };
+                return;
+            }
+        };
 
-        // Send a confirmation for the user to link their account.
         let confirmation_message = format!(
             "Here is the Steam profile with the associated Steam ID: **{}**.\n\
-             Reply with `yes` within 30 seconds to confirm linking, or `no` to cancel.",
+        Reply with `yes` within 30 seconds to confirm linking, or `no` to cancel.",
             profile_data.personaname
         );
 
@@ -113,84 +131,62 @@ impl Bot {
             return;
         }
 
-        // Use a MessageCollector instead of await_reply.
         let collector = MessageCollector::new(ctx)
             .channel_id(msg.channel_id)
             .author_id(msg.author.id)
             .timeout(Duration::from_secs(30));
 
-        // Grab the next matching message.
         let user_reply = match collector.next().await {
             Some(reply_msg) => reply_msg.content.to_lowercase(),
             None => {
                 let _ = msg.channel_id.say(
                     &ctx.http,
-                    "No confirmation was received. Please run the command again if you wish to link your Steam account.",
+                    "No confirmation received. Please run the command again if you wish to link your Steam account.",
                 ).await;
                 return;
             }
         };
 
-        // Check if the user replied "yes".
         if user_reply.starts_with("yes") {
             let discord_id = msg.author.id.get() as i64;
             let author_name = &msg.author.name;
 
-            // Link the Steam ID in the DB.
-            if let Err(e) = db::link_steam(&self.database, author_name, discord_id, steam_id).await
-            {
+            if let Err(e) = db::link_steam(&self.database, author_name, discord_id, steam_id).await {
                 error!("Database error linking Steam ID: {:?}", e);
-                let _ = msg
-                    .channel_id
-                    .say(
-                        &ctx.http,
-                        "Failed to link Steam ID. Please try again later.",
-                    )
-                    .await;
+                let _ = msg.channel_id.say(
+                    &ctx.http,
+                    "Failed to link Steam ID. Please try again later.",
+                ).await;
                 return;
             }
 
-            let _ = msg
-                .channel_id
-                .say(
-                    &ctx.http,
-                    format!(
-                        "Successfully linked Steam ID `{}` to your Discord account!",
-                        steam_id
-                    ),
-                )
-                .await;
+            let _ = msg.channel_id.say(
+                &ctx.http,
+                format!("Successfully linked Steam ID `{}` to your Discord account!", steam_id),
+            ).await;
 
-            // Try to fetch and store the user's Steam games.
             match crate::steam::fetch_steam_games(API_URL, steam_id, &self.steam_api_key).await {
                 Ok(games_vector) => {
-                    let steam_owned_games = crate::steam::SteamOwnedGames {
-                        games: games_vector,
-                    };
-                    if let Err(e) =
-                        db::store_steam_games(&self.database, steam_id, steam_owned_games).await
-                    {
+                    let steam_owned_games = crate::steam::SteamOwnedGames { games: games_vector };
+                    if let Err(e) = db::store_steam_games(&self.database, steam_id, steam_owned_games).await {
                         error!("Failed to store games in database: {:?}", e);
-                        let _ = msg
-                            .channel_id
-                            .say(&ctx.http, "Error storing games in the database.")
-                            .await;
+                        let _ = msg.channel_id.say(
+                            &ctx.http,
+                            "Error storing games in the database.",
+                        ).await;
                     } else {
-                        let _ = msg
-                            .channel_id
-                            .say(
-                                &ctx.http,
-                                "Steam games successfully updated in the database!",
-                            )
-                            .await;
+                        let _ = msg.channel_id.say(
+                            &ctx.http,
+                            "✅ Steam games successfully updated in the database!",
+                        ).await;
                     }
                 }
                 Err(e) => {
                     error!("Failed to fetch games from Steam API: {:?}", e);
-                    let _ = msg
-                        .channel_id
-                        .say(&ctx.http, "Error retrieving Steam data.")
-                        .await;
+                    let _ = msg.channel_id.say(
+                        &ctx.http,
+                        "⚠️ Error retrieving Steam data.",
+                    ).await;
                 }
             }
         } else {
@@ -343,7 +339,7 @@ impl Bot {
                             .channel_id
                             .say(
                                 &ctx.http,
-                                "⚠️ Error generating recommendations. Please try again later.",
+                                format!("⚠️ Error generating recommendations:\n```{}```", e),
                             )
                             .await;
                     }
