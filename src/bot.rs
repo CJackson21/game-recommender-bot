@@ -44,9 +44,6 @@ impl EventHandler for Bot {
                     }
                 }
             }
-            "!steam_games" => {
-                self.handle_steam_games(&ctx, &msg).await;
-            }
             "!top_games" => {
                 self.display_top_games(&ctx, &msg).await;
             }
@@ -194,65 +191,6 @@ impl Bot {
                 &ctx.http,
                 "Canceled. Please run the command again if you wish to link your Steam account.",
             ).await;
-        }
-    }
-
-    /// Handles the `!steam_games` command by fetching and displaying the user's most played game.
-    pub async fn handle_steam_games(&self, ctx: &Context, msg: &Message) {
-        let discord_id = msg.author.id.get() as i64;
-        match db::get_steam_id(&self.database, discord_id).await {
-            Ok(Some(steam_id)) => {
-                self.fetch_and_display_steam_games(ctx, msg, &steam_id)
-                    .await;
-            }
-            Ok(None) => {
-                let _ = msg
-                    .channel_id
-                    .say(
-                        &ctx.http,
-                        "You haven't linked your Steam ID yet! Use `!link_steam <steam_id>`.",
-                    )
-                    .await;
-            }
-            Err(e) => {
-                error!("Database error fetching Steam ID: {:?}", e);
-                let _ = msg
-                    .channel_id
-                    .say(&ctx.http, "Database error. Please try again later.")
-                    .await;
-            }
-        }
-    }
-
-    /// Fetches and displays the user's most played game.
-    pub async fn fetch_and_display_steam_games(
-        &self,
-        ctx: &Context,
-        msg: &Message,
-        steam_id: &str,
-    ) {
-        if let Some(games) = self.get_steam_games(steam_id).await {
-            match games.iter().max_by_key(|g| g.playtime_forever) {
-                Some(top_game) => {
-                    let response = format!(
-                        "Your most played game: **{}** ({} hours)",
-                        top_game.name,
-                        top_game.playtime_forever / 60
-                    );
-                    let _ = msg.channel_id.say(&ctx.http, response).await;
-                }
-                None => {
-                    let _ = msg
-                        .channel_id
-                        .say(&ctx.http, "No games found in your Steam account.")
-                        .await;
-                }
-            }
-        } else {
-            let _ = msg
-                .channel_id
-                .say(&ctx.http, "Error retrieving Steam data.")
-                .await;
         }
     }
 

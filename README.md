@@ -102,6 +102,7 @@ game-recommender/
 - AI-generated recommendations (via HuggingFace or local LLM)
 - Genre-based filtering
 - Personalized analytics & stats
+- Ability to ask for recommendations based on input (i.e. !recommend chill roguelike)
 
 ---
 
